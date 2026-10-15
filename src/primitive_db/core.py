@@ -82,3 +82,134 @@ def drop_table(metadata, table_name):
     del updated_metadata[table_name]
 
     return updated_metadata
+
+
+def validate_value_type(value, column_type):
+    """Проверяет соответствие значения объявленному типу столбца."""
+    expected_types = {
+        "int": int,
+        "str": str,
+        "bool": bool,
+    }
+
+    expected_type = expected_types.get(column_type)
+
+    if expected_type is None:
+        raise ValueError(f'Неподдерживаемый тип данных: "{column_type}".')
+
+    return type(value) is expected_type
+
+
+def insert_record(columns, records, values):
+    """Добавляет запись и возвращает новый список записей."""
+    user_columns = [column_name for column_name in columns if column_name != ID_COLUMN]
+
+    if len(values) != len(user_columns):
+        raise ValueError(
+            f"Некорректное количество значений: "
+            f"ожидалось {len(user_columns)}, получено {len(values)}."
+        )
+
+    new_record = {}
+
+    for column_name, value in zip(user_columns, values):
+        column_type = columns[column_name]
+
+        if not validate_value_type(value, column_type):
+            raise ValueError(
+                f'Некорректный тип значения для столбца "{column_name}": '
+                f"ожидается {column_type}."
+            )
+
+        new_record[column_name] = value
+
+    new_id = (
+        max(
+            (record[ID_COLUMN] for record in records),
+            default=0,
+        )
+        + 1
+    )
+
+    new_record = {
+        ID_COLUMN: new_id,
+        **new_record,
+    }
+
+    return [*records, new_record]
+
+
+def select_records(columns, records, where=None):
+    """Возвращает записи таблицы, удовлетворяющие условию."""
+    if where is None:
+        return [record.copy() for record in records]
+
+    column_name, value = where
+
+    if column_name not in columns:
+        raise ValueError(f'Столбец "{column_name}" не существует.')
+
+    column_type = columns[column_name]
+
+    if not validate_value_type(value, column_type):
+        raise ValueError(
+            f'Некорректный тип значения для столбца "{column_name}": '
+            f"ожидается {column_type}."
+        )
+
+    return [record.copy() for record in records if record[column_name] == value]
+
+
+def update_records(columns, records, set_clause, where):
+    """Обновляет записи по условию и возвращает новый список и число изменений."""
+    set_column, set_value = set_clause
+    where_column, where_value = where
+
+    for column_name, value in (set_clause, where):
+        if column_name not in columns:
+            raise ValueError(f'Столбец "{column_name}" не существует.')
+
+        if not validate_value_type(value, columns[column_name]):
+            raise ValueError(
+                f'Некорректный тип значения для столбца "{column_name}": '
+                f"ожидается {columns[column_name]}."
+            )
+
+    if set_column == ID_COLUMN:
+        raise ValueError('Изменение столбца "ID" запрещено.')
+
+    updated_records = []
+    updated_count = 0
+
+    for record in records:
+        new_record = record.copy()
+
+        if record[where_column] == where_value:
+            new_record[set_column] = set_value
+            updated_count += 1
+
+        updated_records.append(new_record)
+
+    return updated_records, updated_count
+
+
+def delete_records(columns, records, where):
+    """Удаляет записи по условию и возвращает новый список и число удалений."""
+    column_name, value = where
+
+    if column_name not in columns:
+        raise ValueError(f'Столбец "{column_name}" не существует.')
+
+    if not validate_value_type(value, columns[column_name]):
+        raise ValueError(
+            f'Некорректный тип значения для столбца "{column_name}": '
+            f"ожидается {columns[column_name]}."
+        )
+
+    remaining_records = [
+        record.copy() for record in records if record[column_name] != value
+    ]
+
+    deleted_count = len(records) - len(remaining_records)
+
+    return remaining_records, deleted_count

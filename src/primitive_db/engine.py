@@ -1,6 +1,7 @@
 """Интерактивный интерфейс примитивной базы данных."""
 
 import prompt
+from prettytable import PrettyTable
 
 from primitive_db.constants import (
     COMMAND_CREATE_TABLE,
@@ -16,15 +17,26 @@ from primitive_db.constants import (
 )
 from primitive_db.core import (
     create_table,
+    delete_records,
     drop_table,
     get_table_info,
+    insert_record,
     list_tables,
+    select_records,
+    update_records,
+)
+from primitive_db.parser import (
+    parse_delete,
+    parse_insert,
+    parse_select,
+    parse_update,
 )
 from primitive_db.utils import (
     delete_table_data,
     load_metadata,
     load_table_data,
     save_metadata,
+    save_table_data,
 )
 
 HELP_TEXT = """Доступные команды:
@@ -39,17 +51,18 @@ HELP_TEXT = """Доступные команды:
   help                                - Показать справку
   exit                                - Выйти из программы"""
 
-NOT_IMPLEMENTED_COMMANDS = {
-    COMMAND_INSERT,
-    COMMAND_SELECT,
-    COMMAND_UPDATE,
-    COMMAND_DELETE,
-}
-
 
 def show_help():
     """Выводит справку по доступным командам."""
     print(HELP_TEXT)
+
+
+def load_existing_table(table_name):
+    """Загружает схему и записи существующей таблицы."""
+    metadata = load_metadata()
+    columns = get_table_info(metadata, table_name)
+    records = load_table_data(table_name)
+    return columns, records
 
 
 def handle_create_table(command_line):
@@ -108,9 +121,7 @@ def handle_info(command_line):
 
     table_name = parts[1]
 
-    metadata = load_metadata()
-    columns = get_table_info(metadata, table_name)
-    records = load_table_data(table_name)
+    columns, records = load_existing_table(table_name)
 
     print(f"Таблица: {table_name}")
     print("Столбцы:")
@@ -151,10 +162,113 @@ def handle_drop_table(command_line):
     print(f'Таблица "{table_name}" успешно удалена.')
 
 
+def handle_insert(command_line):
+    """Добавляет запись в таблицу и сохраняет результат."""
+    parsed = parse_insert(command_line)
+    table_name = parsed["table"]
+
+    columns, records = load_existing_table(table_name)
+
+    updated_records = insert_record(columns, records, parsed["values"])
+
+    save_table_data(table_name, updated_records)
+
+    new_record = updated_records[-1]
+    print(f'Запись успешно добавлена в таблицу "{table_name}".')
+    print(f"ID новой записи: {new_record['ID']}")
+
+
+def handle_select(command_line):
+    """Выводит записи таблицы с возможной фильтрацией."""
+    parsed = parse_select(command_line)
+    table_name = parsed["table"]
+
+    columns, records = load_existing_table(table_name)
+
+    selected_records = select_records(columns, records, parsed["where"])
+
+    if not selected_records:
+        print("Записи не найдены.")
+        return
+
+    table = PrettyTable()
+    table.field_names = list(columns)
+
+    for record in selected_records:
+        table.add_row([record[column_name] for column_name in columns])
+
+    print(table)
+    print(f"Найдено записей: {len(selected_records)}")
+
+
+def handle_update(command_line):
+    """Обновляет записи таблицы и сохраняет результат."""
+    parsed = parse_update(command_line)
+    table_name = parsed["table"]
+
+    columns, records = load_existing_table(table_name)
+
+    updated_records, updated_count = update_records(
+        columns,
+        records,
+        parsed["set"],
+        parsed["where"],
+    )
+
+    if updated_count:
+        save_table_data(table_name, updated_records)
+
+    print(f"Обновлено записей: {updated_count}")
+
+
+def handle_delete(command_line):
+    """Удаляет записи таблицы после подтверждения."""
+    parsed = parse_delete(command_line)
+    table_name = parsed["table"]
+
+    columns, records = load_existing_table(table_name)
+
+    # Проверяем условие до запроса подтверждения.
+    selected_records = select_records(columns, records, parsed["where"])
+
+    if not selected_records:
+        print("Записи для удаления не найдены.")
+        return
+
+    answer = prompt.string(
+        f"Вы уверены, что хотите удалить {len(selected_records)} записей? (y/n): "
+    )
+
+    if answer.strip().lower() != "y":
+        print("Удаление отменено.")
+        return
+
+    updated_records, deleted_count = delete_records(
+        columns,
+        records,
+        parsed["where"],
+    )
+
+    save_table_data(table_name, updated_records)
+
+    print(f"Удалено записей: {deleted_count}")
+
+
 def run():
     """Запускает интерактивный цикл обработки команд."""
     print("***База данных***")
     print('Для просмотра доступных команд введите "help".')
+
+    handlers = {
+        COMMAND_CREATE_TABLE: handle_create_table,
+        COMMAND_LIST_TABLES: handle_list_tables,
+        COMMAND_INFO: handle_info,
+        COMMAND_DROP_TABLE: handle_drop_table,
+        COMMAND_INSERT: handle_insert,
+        COMMAND_SELECT: handle_select,
+        COMMAND_UPDATE: handle_update,
+        COMMAND_DELETE: handle_delete,
+    }
 
     while True:
         try:
@@ -170,7 +284,6 @@ def run():
 
         command = command_line.split(maxsplit=1)[0]
 
-        # Выход из программы
         if command == COMMAND_EXIT:
             if command_line != COMMAND_EXIT:
                 print(f'Неизвестная команда: "{command_line}".')
@@ -179,7 +292,6 @@ def run():
             print("Выход из программы.")
             break
 
-        # Отображение справки
         if command == COMMAND_HELP:
             if command_line != COMMAND_HELP:
                 print(f'Неизвестная команда: "{command_line}".')
@@ -188,42 +300,13 @@ def run():
             show_help()
             continue
 
-        # Создание таблицы
-        if command == COMMAND_CREATE_TABLE:
-            try:
-                handle_create_table(command_line)
-            except ValueError as error:
-                print(f"Ошибка: {error}")
+        handler = handlers.get(command)
+
+        if handler is None:
+            print(f'Неизвестная команда: "{command_line}".')
             continue
 
-        # Список таблиц
-        if command == COMMAND_LIST_TABLES:
-            try:
-                handle_list_tables(command_line)
-            except ValueError as error:
-                print(f"Ошибка: {error}")
-            continue
-
-        # Информация о таблице
-        if command == COMMAND_INFO:
-            try:
-                handle_info(command_line)
-            except ValueError as error:
-                print(f"Ошибка: {error}")
-            continue
-
-        # Удаление таблицы
-        if command == COMMAND_DROP_TABLE:
-            try:
-                handle_drop_table(command_line)
-            except ValueError as error:
-                print(f"Ошибка: {error}")
-            continue
-
-        # Команды, которые пока не реализованы
-        if command in NOT_IMPLEMENTED_COMMANDS:
-            print("Команда пока не реализована.")
-            continue
-
-        # Неизвестная команда
-        print(f'Неизвестная команда: "{command_line}".')
+        try:
+            handler(command_line)
+        except (ValueError, KeyError, FileNotFoundError) as error:
+            print(f"Ошибка: {error}")
