@@ -25,6 +25,11 @@ from primitive_db.core import (
     select_records,
     update_records,
 )
+from primitive_db.decorators import (
+    confirm_action,
+    handle_db_errors,
+    log_time,
+)
 from primitive_db.parser import (
     parse_delete,
     parse_insert,
@@ -133,27 +138,24 @@ def handle_info(command_line):
 
 
 def handle_drop_table(command_line):
-    """Обрабатывает удаление таблицы с подтверждением."""
+    """Проверяет команду и запускает удаление таблицы."""
     parts = command_line.split()
 
     if len(parts) != 2:
         raise ValueError("Некорректный синтаксис. Используйте: drop_table <имя>")
 
     table_name = parts[1]
-
     metadata = load_metadata()
 
     if table_name not in metadata:
         raise ValueError(f'Таблица "{table_name}" не существует.')
 
-    answer = prompt.string(
-        f'Вы уверены, что хотите удалить таблицу "{table_name}"? (y/n): '
-    )
+    return execute_drop_table(metadata, table_name)
 
-    if answer.strip().lower() != "y":
-        print("Удаление отменено.")
-        return
 
+@confirm_action("удаление таблицы")
+def execute_drop_table(metadata, table_name):
+    """Удаляет таблицу после подтверждения."""
     updated_metadata = drop_table(metadata, table_name)
 
     save_metadata(updated_metadata)
@@ -162,6 +164,7 @@ def handle_drop_table(command_line):
     print(f'Таблица "{table_name}" успешно удалена.')
 
 
+@log_time
 def handle_insert(command_line):
     """Добавляет запись в таблицу и сохраняет результат."""
     parsed = parse_insert(command_line)
@@ -178,6 +181,7 @@ def handle_insert(command_line):
     print(f"ID новой записи: {new_record['ID']}")
 
 
+@log_time
 def handle_select(command_line):
     """Выводит записи таблицы с возможной фильтрацией."""
     parsed = parse_select(command_line)
@@ -222,31 +226,33 @@ def handle_update(command_line):
 
 
 def handle_delete(command_line):
-    """Удаляет записи таблицы после подтверждения."""
+    """Проверяет команду и запускает удаление записей."""
     parsed = parse_delete(command_line)
     table_name = parsed["table"]
 
     columns, records = load_existing_table(table_name)
 
-    # Проверяем условие до запроса подтверждения.
     selected_records = select_records(columns, records, parsed["where"])
 
     if not selected_records:
         print("Записи для удаления не найдены.")
         return
 
-    answer = prompt.string(
-        f"Вы уверены, что хотите удалить {len(selected_records)} записей? (y/n): "
-    )
-
-    if answer.strip().lower() != "y":
-        print("Удаление отменено.")
-        return
-
-    updated_records, deleted_count = delete_records(
+    return execute_delete(
+        table_name,
         columns,
         records,
         parsed["where"],
+    )
+
+
+@confirm_action("удаление записей")
+def execute_delete(table_name, columns, records, where):
+    """Удаляет записи после подтверждения."""
+    updated_records, deleted_count = delete_records(
+        columns,
+        records,
+        where,
     )
 
     save_table_data(table_name, updated_records)
@@ -306,7 +312,4 @@ def run():
             print(f'Неизвестная команда: "{command_line}".')
             continue
 
-        try:
-            handler(command_line)
-        except (ValueError, KeyError, FileNotFoundError) as error:
-            print(f"Ошибка: {error}")
+        handle_db_errors(handler)(command_line)
