@@ -181,15 +181,13 @@ def handle_insert(command_line):
     table_name = parsed["table"]
 
     columns, records = load_existing_table(table_name)
-
     updated_records = insert_record(columns, records, parsed["values"])
 
     save_table_data(table_name, updated_records)
     reset_cache()
 
-    new_record = updated_records[-1]
-    print(f'Запись успешно добавлена в таблицу "{table_name}".')
-    print(f"ID новой записи: {new_record['ID']}")
+    new_id = updated_records[-1]["ID"]
+    print(f'Запись с ID={new_id} успешно добавлена в таблицу "{table_name}".')
 
 
 @log_time
@@ -229,6 +227,8 @@ def handle_update(command_line):
 
     columns, records = load_existing_table(table_name)
 
+    matching_records = select_records(columns, records, parsed["where"])
+
     updated_records, updated_count = update_records(
         columns,
         records,
@@ -240,7 +240,11 @@ def handle_update(command_line):
         save_table_data(table_name, updated_records)
         reset_cache()
 
-    print(f"Обновлено записей: {updated_count}")
+    if updated_count == 1:
+        record_id = matching_records[0]["ID"]
+        print(f'Запись с ID={record_id} в таблице "{table_name}" успешно обновлена.')
+    else:
+        print(f"Обновлено записей: {updated_count}")
 
 
 def handle_delete(command_line):
@@ -267,6 +271,8 @@ def handle_delete(command_line):
 @confirm_action("удаление записей")
 def execute_delete(table_name, columns, records, where):
     """Удаляет записи после подтверждения и сбрасывает кеш."""
+    selected_records = select_records(columns, records, where)
+
     updated_records, deleted_count = delete_records(
         columns,
         records,
@@ -276,7 +282,11 @@ def execute_delete(table_name, columns, records, where):
     save_table_data(table_name, updated_records)
     reset_cache()
 
-    print(f"Удалено записей: {deleted_count}")
+    if deleted_count == 1:
+        record_id = selected_records[0]["ID"]
+        print(f'Запись с ID={record_id} успешно удалена из таблицы "{table_name}".')
+    else:
+        print(f"Удалено записей: {deleted_count}")
 
 
 def run():
