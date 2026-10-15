@@ -1,5 +1,7 @@
 """Разбор SQL-подобных команд примитивной базы данных."""
 
+import shlex
+
 
 def parse_value(value):
     """Преобразует текстовое значение в int, str или bool."""
@@ -12,9 +14,14 @@ def parse_value(value):
         if len(value) < 2 or not value.endswith('"'):
             raise ValueError(f"Некорректное значение: {value}.")
 
-        return value[1:-1]
+        content = value[1:-1]
 
-    if value.endswith('"'):
+        if '"' in content:
+            raise ValueError(f"Некорректное значение: {value}.")
+
+        return content
+
+    if '"' in value:
         raise ValueError(f"Некорректное значение: {value}.")
 
     if value.lower() == "true":
@@ -27,3 +34,57 @@ def parse_value(value):
         return int(value)
     except ValueError:
         raise ValueError(f"Некорректное значение: {value}.") from None
+
+
+def parse_values(text):
+    """Разбирает список значений в круглых скобках."""
+    text = text.strip()
+
+    if not text.startswith("(") or not text.endswith(")"):
+        raise ValueError("Некорректный список значений: ожидаются круглые скобки.")
+
+    content = text[1:-1]
+
+    if not content.strip():
+        raise ValueError("Некорректный список значений: список пуст.")
+
+    try:
+        lexer = shlex.shlex(content, posix=True)
+        lexer.whitespace_split = True
+        lexer.commenters = ""
+        list(lexer)
+    except ValueError:
+        raise ValueError("Некорректный список значений: незакрытые кавычки.") from None
+
+    values = []
+    current = []
+    inside_quotes = False
+
+    for char in content:
+        if char == '"':
+            inside_quotes = not inside_quotes
+            current.append(char)
+
+        elif char == "," and not inside_quotes:
+            value = "".join(current).strip()
+
+            if not value:
+                raise ValueError("Некорректный список значений: пропущено значение.")
+
+            values.append(parse_value(value))
+            current = []
+
+        else:
+            current.append(char)
+
+    if inside_quotes:
+        raise ValueError("Некорректный список значений: незакрытые кавычки.")
+
+    value = "".join(current).strip()
+
+    if not value:
+        raise ValueError("Некорректный список значений: лишняя запятая.")
+
+    values.append(parse_value(value))
+
+    return values
