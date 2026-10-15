@@ -197,3 +197,63 @@ def parse_select(command):
         "table": table_name,
         "where": (column_name, value),
     }
+
+
+def parse_update(command):
+    """Разбирает команду update с условиями set и where."""
+    command = command.strip()
+    parts = command.split(maxsplit=3)
+
+    if len(parts) != 4 or parts[0] != "update":
+        raise ValueError("Некорректная команда update.")
+
+    table_name = parts[1]
+
+    if (
+        not table_name.isascii()
+        or not table_name.replace("_", "").isalnum()
+        or table_name[0].isdigit()
+    ):
+        raise ValueError(f"Некорректное имя таблицы: {table_name}.")
+
+    if parts[2] != "set":
+        raise ValueError("Некорректная команда update: ожидается set.")
+
+    remainder = parts[3]
+
+    # Ищем ключевое слово where вне строковых литералов.
+    inside_quotes = False
+    where_position = None
+
+    for index, char in enumerate(remainder):
+        if char == '"':
+            inside_quotes = not inside_quotes
+
+        if not inside_quotes and remainder[index : index + 5] == "where":
+            before = index == 0 or remainder[index - 1].isspace()
+            after = index + 5 == len(remainder) or remainder[index + 5].isspace()
+
+            if before and after:
+                where_position = index
+                break
+
+    if where_position is None:
+        raise ValueError("Некорректная команда update: ожидается where.")
+
+    set_text = remainder[:where_position].strip()
+    where_text = remainder[where_position + 5 :].strip()
+
+    if not set_text:
+        raise ValueError("Некорректная команда update: отсутствует set-условие.")
+
+    if not where_text:
+        raise ValueError("Некорректная команда update: отсутствует where-условие.")
+
+    set_column, set_value = parse_condition(set_text)
+    where_column, where_value = parse_condition(where_text)
+
+    return {
+        "table": table_name,
+        "set": (set_column, set_value),
+        "where": (where_column, where_value),
+    }
