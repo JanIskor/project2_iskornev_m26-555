@@ -82,3 +82,79 @@ def drop_table(metadata, table_name):
     del updated_metadata[table_name]
 
     return updated_metadata
+
+
+def validate_value_type(value, column_type):
+    """Проверяет соответствие значения объявленному типу столбца."""
+    expected_types = {
+        "int": int,
+        "str": str,
+        "bool": bool,
+    }
+
+    expected_type = expected_types.get(column_type)
+
+    if expected_type is None:
+        raise ValueError(f'Неподдерживаемый тип данных: "{column_type}".')
+
+    return type(value) is expected_type
+
+
+def insert_record(columns, records, values):
+    """Добавляет запись и возвращает новый список записей."""
+    user_columns = [column_name for column_name in columns if column_name != ID_COLUMN]
+
+    if len(values) != len(user_columns):
+        raise ValueError(
+            f"Некорректное количество значений: "
+            f"ожидалось {len(user_columns)}, получено {len(values)}."
+        )
+
+    new_record = {}
+
+    for column_name, value in zip(user_columns, values):
+        column_type = columns[column_name]
+
+        if not validate_value_type(value, column_type):
+            raise ValueError(
+                f'Некорректный тип значения для столбца "{column_name}": '
+                f"ожидается {column_type}."
+            )
+
+        new_record[column_name] = value
+
+    new_id = (
+        max(
+            (record[ID_COLUMN] for record in records),
+            default=0,
+        )
+        + 1
+    )
+
+    new_record = {
+        ID_COLUMN: new_id,
+        **new_record,
+    }
+
+    return [*records, new_record]
+
+
+def select_records(columns, records, where=None):
+    """Возвращает записи таблицы, удовлетворяющие условию."""
+    if where is None:
+        return [record.copy() for record in records]
+
+    column_name, value = where
+
+    if column_name not in columns:
+        raise ValueError(f'Столбец "{column_name}" не существует.')
+
+    column_type = columns[column_name]
+
+    if not validate_value_type(value, column_type):
+        raise ValueError(
+            f'Некорректный тип значения для столбца "{column_name}": '
+            f"ожидается {column_type}."
+        )
+
+    return [record.copy() for record in records if record[column_name] == value]
