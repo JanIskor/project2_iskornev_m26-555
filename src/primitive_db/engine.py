@@ -14,8 +14,18 @@ from primitive_db.constants import (
     COMMAND_SELECT,
     COMMAND_UPDATE,
 )
-from primitive_db.core import create_table, get_table_info, list_tables
-from primitive_db.utils import load_metadata, load_table_data, save_metadata
+from primitive_db.core import (
+    create_table,
+    drop_table,
+    get_table_info,
+    list_tables,
+)
+from primitive_db.utils import (
+    delete_table_data,
+    load_metadata,
+    load_table_data,
+    save_metadata,
+)
 
 HELP_TEXT = """Доступные команды:
   create_table <имя> <столбец:тип> ...  - Создать таблицу
@@ -30,7 +40,6 @@ HELP_TEXT = """Доступные команды:
   exit                                - Выйти из программы"""
 
 NOT_IMPLEMENTED_COMMANDS = {
-    COMMAND_DROP_TABLE,
     COMMAND_INSERT,
     COMMAND_SELECT,
     COMMAND_UPDATE,
@@ -112,6 +121,36 @@ def handle_info(command_line):
     print(f"Количество записей: {len(records)}")
 
 
+def handle_drop_table(command_line):
+    """Обрабатывает удаление таблицы с подтверждением."""
+    parts = command_line.split()
+
+    if len(parts) != 2:
+        raise ValueError("Некорректный синтаксис. Используйте: drop_table <имя>")
+
+    table_name = parts[1]
+
+    metadata = load_metadata()
+
+    if table_name not in metadata:
+        raise ValueError(f'Таблица "{table_name}" не существует.')
+
+    answer = prompt.string(
+        f'Вы уверены, что хотите удалить таблицу "{table_name}"? (y/n): '
+    )
+
+    if answer.strip().lower() != "y":
+        print("Удаление отменено.")
+        return
+
+    updated_metadata = drop_table(metadata, table_name)
+
+    save_metadata(updated_metadata)
+    delete_table_data(table_name)
+
+    print(f'Таблица "{table_name}" успешно удалена.')
+
+
 def run():
     """Запускает интерактивный цикл обработки команд."""
     print("***База данных***")
@@ -172,6 +211,15 @@ def run():
             except ValueError as error:
                 print(f"Ошибка: {error}")
             continue
+
+        # Удаление таблицы
+        if command == COMMAND_DROP_TABLE:
+            try:
+                handle_drop_table(command_line)
+            except ValueError as error:
+                print(f"Ошибка: {error}")
+            continue
+
         # Команды, которые пока не реализованы
         if command in NOT_IMPLEMENTED_COMMANDS:
             print("Команда пока не реализована.")
