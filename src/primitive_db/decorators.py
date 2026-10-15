@@ -6,13 +6,22 @@ import prompt
 
 
 def handle_db_errors(func):
-    """Перехватывает ожидаемые ошибки при работе с базой данных."""
+    """Перехватывает ошибки БД и выводит понятные сообщения."""
 
     def wrapper(*args, **kwargs):
         try:
             return func(*args, **kwargs)
+
         except (KeyError, ValueError, FileNotFoundError) as error:
-            print(f"Ошибка: {error}")
+            message = str(error)
+
+            if isinstance(error, ValueError) and message.startswith(
+                "Некорректное значение:"
+            ):
+                print(f"{message} Попробуйте снова.")
+            else:
+                print(f"Ошибка: {message}")
+
             return None
 
     return wrapper
@@ -51,3 +60,18 @@ def log_time(func):
             print(f"Функция {func.__name__} выполнилась за {elapsed_time:.3f} секунд.")
 
     return wrapper
+
+
+def create_cacher():
+    """Создаёт независимый кеш результатов запросов."""
+
+    cache = {}
+
+    def cache_result(key, value_func):
+        """Возвращает сохранённый результат или вычисляет и сохраняет новый."""
+        if key not in cache:
+            cache[key] = value_func()
+
+        return cache[key]
+
+    return cache_result

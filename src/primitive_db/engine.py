@@ -27,6 +27,7 @@ from primitive_db.core import (
 )
 from primitive_db.decorators import (
     confirm_action,
+    create_cacher,
     handle_db_errors,
     log_time,
 )
@@ -37,7 +38,6 @@ from primitive_db.parser import (
     parse_update,
 )
 from primitive_db.utils import (
-    create_cacher,
     delete_table_data,
     load_metadata,
     load_table_data,
@@ -87,6 +87,7 @@ def load_existing_table(table_name):
     return columns, records
 
 
+@handle_db_errors
 def handle_create_table(command_line):
     """Обрабатывает создание новой таблицы."""
     parts = command_line.split()
@@ -119,6 +120,7 @@ def handle_create_table(command_line):
     print(f'Таблица "{table_name}" успешно создана со столбцами: {columns_description}')
 
 
+@handle_db_errors
 def handle_list_tables(command_line):
     """Выводит список существующих таблиц."""
     if command_line != COMMAND_LIST_TABLES:
@@ -135,6 +137,7 @@ def handle_list_tables(command_line):
         print(f"- {table_name}")
 
 
+@handle_db_errors
 def handle_info(command_line):
     """Выводит структуру таблицы и количество записей."""
     parts = command_line.split()
@@ -154,6 +157,7 @@ def handle_info(command_line):
     print(f"Количество записей: {len(records)}")
 
 
+@handle_db_errors
 def handle_drop_table(command_line):
     """Проверяет команду и запускает удаление таблицы."""
     parts = command_line.split()
@@ -182,6 +186,7 @@ def execute_drop_table(metadata, table_name):
     print(f'Таблица "{table_name}" успешно удалена.')
 
 
+@handle_db_errors
 @log_time
 def handle_insert(command_line):
     """Добавляет запись в таблицу и сбрасывает кеш SELECT."""
@@ -198,6 +203,7 @@ def handle_insert(command_line):
     print(f'Запись с ID={new_id} успешно добавлена в таблицу "{table_name}".')
 
 
+@handle_db_errors
 @log_time
 def handle_select(command_line):
     """Выводит записи таблицы, используя кеш повторных запросов."""
@@ -205,7 +211,7 @@ def handle_select(command_line):
     table_name = parsed["table"]
     where = parsed["where"]
 
-    cache_key = (table_name, where)
+    cache_key = (table_name, repr(where))
 
     def execute_select():
         columns, records = load_existing_table(table_name)
@@ -228,6 +234,7 @@ def handle_select(command_line):
     print(f"Найдено записей: {len(selected_records)}")
 
 
+@handle_db_errors
 def handle_update(command_line):
     """Обновляет записи таблицы и сбрасывает кеш при изменениях."""
     parsed = parse_update(command_line)
@@ -255,6 +262,7 @@ def handle_update(command_line):
         print(f"Обновлено записей: {updated_count}")
 
 
+@handle_db_errors
 def handle_delete(command_line):
     """Проверяет команду и запускает удаление записей."""
     parsed = parse_delete(command_line)
@@ -348,4 +356,4 @@ def run():
             print(f"Функции {command} нет. Попробуйте снова.")
             continue
 
-        handle_db_errors(handler)(command_line)
+        handler(command_line)

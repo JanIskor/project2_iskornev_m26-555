@@ -2,6 +2,8 @@
 
 import shlex
 
+from primitive_db.core import is_valid_identifier
+
 
 def parse_value(value):
     """Преобразует текстовое значение в int, str или bool."""
@@ -113,10 +115,7 @@ def parse_insert(command):
     if operation != "insert" or keyword != "into":
         raise ValueError("Некорректная команда insert.")
 
-    if not table_name.isascii() or not table_name.replace("_", "").isalnum():
-        raise ValueError(f"Некорректное имя таблицы: {table_name}.")
-
-    if table_name[0].isdigit():
+    if not is_valid_identifier(table_name):
         raise ValueError(f"Некорректное имя таблицы: {table_name}.")
 
     values_parts = remainder.split(maxsplit=1)
@@ -155,12 +154,7 @@ def parse_condition(condition):
     column_name = condition[:position].strip()
     value_text = condition[position + 1 :].strip()
 
-    if (
-        not column_name
-        or not column_name.isascii()
-        or not column_name.replace("_", "").isalnum()
-        or column_name[0].isdigit()
-    ):
+    if not is_valid_identifier(column_name):
         raise ValueError(f"Некорректное имя столбца: {column_name}.")
 
     value = parse_value(value_text)
@@ -181,11 +175,7 @@ def parse_select(command):
 
     table_name = parts[2]
 
-    if (
-        not table_name.isascii()
-        or not table_name.replace("_", "").isalnum()
-        or table_name[0].isdigit()
-    ):
+    if not is_valid_identifier(table_name):
         raise ValueError(f"Некорректное имя таблицы: {table_name}.")
 
     if len(parts) == 3:
@@ -218,11 +208,7 @@ def parse_update(command):
 
     table_name = parts[1]
 
-    if (
-        not table_name.isascii()
-        or not table_name.replace("_", "").isalnum()
-        or table_name[0].isdigit()
-    ):
+    if not is_valid_identifier(table_name):
         raise ValueError(f"Некорректное имя таблицы: {table_name}.")
 
     if parts[2] != "set":
@@ -281,11 +267,7 @@ def parse_delete(command):
     if operation != "delete" or keyword != "from":
         raise ValueError("Некорректная команда delete.")
 
-    if (
-        not table_name.isascii()
-        or not table_name.replace("_", "").isalnum()
-        or table_name[0].isdigit()
-    ):
+    if not is_valid_identifier(table_name):
         raise ValueError(f"Некорректное имя таблицы: {table_name}.")
 
     if where_keyword != "where":

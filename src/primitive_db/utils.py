@@ -48,18 +48,3 @@ def delete_table_data(table_name):
 
     if os.path.exists(filepath):
         os.remove(filepath)
-
-
-def create_cacher():
-    """Создаёт независимый кеш результатов запросов."""
-
-    cache = {}
-
-    def cache_result(key, value_func):
-        """Возвращает сохранённый результат или вычисляет и сохраняет новый."""
-        if key not in cache:
-            cache[key] = value_func()
-
-        return cache[key]
-
-    return cache_result
