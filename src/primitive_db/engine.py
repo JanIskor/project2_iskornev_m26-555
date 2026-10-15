@@ -45,17 +45,25 @@ from primitive_db.utils import (
     save_table_data,
 )
 
-HELP_TEXT = """Доступные команды:
-  create_table <имя> <столбец:тип> ...  - Создать таблицу
-  list_tables                         - Показать список таблиц
-  drop_table <имя>                    - Удалить таблицу
-  insert into <имя> values (...)      - Добавить запись
-  select from <имя> [where ...]       - Выбрать записи
-  update <имя> set ... where ...      - Обновить записи
-  delete from <имя> where ...         - Удалить записи
-  info <имя>                          - Информация о таблице
-  help                                - Показать справку
-  exit                                - Выйти из программы"""
+HELP_TEXT = (
+    "***База данных***\n"
+    "\n"
+    "Функции:\n"
+    "<command> create_table <имя_таблицы> <столбец1:тип> ... - создать таблицу\n"
+    "<command> list_tables - показать список всех таблиц\n"
+    "<command> drop_table <имя_таблицы> - удалить таблицу\n"
+    "<command> insert into <имя_таблицы> values (<значение1>, ...) - создать запись\n"
+    "<command> select from <имя_таблицы> where <столбец> = <значение> "
+    "- прочитать записи по условию\n"
+    "<command> select from <имя_таблицы> - прочитать все записи\n"
+    "<command> update <имя_таблицы> set <столбец> = <значение> "
+    "where <столбец> = <значение> - обновить запись\n"
+    "<command> delete from <имя_таблицы> where <столбец> = <значение> "
+    "- удалить запись\n"
+    "<command> info <имя_таблицы> - информация о таблице\n"
+    "<command> exit - выход из программы\n"
+    "<command> help - справочная информация"
+)
 
 cache_result = create_cacher()
 
@@ -123,7 +131,8 @@ def handle_list_tables(command_line):
         print("В базе данных нет таблиц.")
         return
 
-    print(f"Список таблиц: {', '.join(tables)}")
+    for table_name in tables:
+        print(f"- {table_name}")
 
 
 def handle_info(command_line):
@@ -134,15 +143,14 @@ def handle_info(command_line):
         raise ValueError("Некорректный синтаксис. Используйте: info <имя>")
 
     table_name = parts[1]
-
     columns, records = load_existing_table(table_name)
 
+    columns_description = ", ".join(
+        f"{column_name}:{column_type}" for column_name, column_type in columns.items()
+    )
+
     print(f"Таблица: {table_name}")
-    print("Столбцы:")
-
-    for column_name, column_type in columns.items():
-        print(f"  {column_name}: {column_type}")
-
+    print(f"Столбцы: {columns_description}")
     print(f"Количество записей: {len(records)}")
 
 
@@ -290,7 +298,7 @@ def execute_delete(table_name, columns, records, where):
 
 
 def run():
-    """Запускает интерактивный цикл обработки команд."""
+    """Запускает интерактивный цикл обработки команд базы данных."""
     print("***База данных***")
     print('Для просмотра доступных команд введите "help".')
 
@@ -313,7 +321,6 @@ def run():
             break
 
         command_line = command_line.strip()
-
         if not command_line:
             continue
 
@@ -321,7 +328,7 @@ def run():
 
         if command == COMMAND_EXIT:
             if command_line != COMMAND_EXIT:
-                print(f'Неизвестная команда: "{command_line}".')
+                print(f"Функции {command_line} нет. Попробуйте снова.")
                 continue
 
             print("Выход из программы.")
@@ -329,7 +336,7 @@ def run():
 
         if command == COMMAND_HELP:
             if command_line != COMMAND_HELP:
-                print(f'Неизвестная команда: "{command_line}".')
+                print(f"Функции {command_line} нет. Попробуйте снова.")
                 continue
 
             show_help()
@@ -338,7 +345,7 @@ def run():
         handler = handlers.get(command)
 
         if handler is None:
-            print(f'Неизвестная команда: "{command_line}".')
+            print(f"Функции {command} нет. Попробуйте снова.")
             continue
 
         handle_db_errors(handler)(command_line)

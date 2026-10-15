@@ -19,12 +19,12 @@ def handle_db_errors(func):
 
 
 def confirm_action(action_name):
-    """Создаёт декоратор подтверждения потенциально опасной операции."""
+    """Запрашивает подтверждение перед опасной операцией."""
 
     def decorator(func):
         def wrapper(*args, **kwargs):
             answer = prompt.string(
-                f"Вы уверены, что хотите выполнить {action_name}? (y/n): "
+                f'Вы уверены, что хотите выполнить "{action_name}"? [y/n]: '
             )
 
             if answer.strip().lower() != "y":
@@ -48,6 +48,6 @@ def log_time(func):
             return func(*args, **kwargs)
         finally:
             elapsed_time = time.monotonic() - start_time
-            print(f"Время выполнения: {elapsed_time:.6f} сек.")
+            print(f"Функция {func.__name__} выполнилась за {elapsed_time:.3f} секунд.")
 
     return wrapper
