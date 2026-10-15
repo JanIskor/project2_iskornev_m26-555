@@ -88,3 +88,37 @@ def parse_values(text):
     values.append(parse_value(value))
 
     return values
+
+
+def parse_insert(command):
+    """Разбирает команду insert into <Название таблицы> values (...)."""
+    command = command.strip()
+
+    parts = command.split(maxsplit=3)
+
+    if len(parts) != 4:
+        raise ValueError("Некорректная команда insert.")
+
+    operation, keyword, table_name, remainder = parts
+
+    if operation != "insert" or keyword != "into":
+        raise ValueError("Некорректная команда insert.")
+
+    if not table_name.isascii() or not table_name.replace("_", "").isalnum():
+        raise ValueError(f"Некорректное имя таблицы: {table_name}.")
+
+    if table_name[0].isdigit():
+        raise ValueError(f"Некорректное имя таблицы: {table_name}.")
+
+    values_parts = remainder.split(maxsplit=1)
+
+    if len(values_parts) != 2 or values_parts[0] != "values":
+        raise ValueError("Некорректная команда insert: ожидается values.")
+
+    values_text = values_parts[1]
+    values = parse_values(values_text)
+
+    return {
+        "table": table_name,
+        "values": values,
+    }
