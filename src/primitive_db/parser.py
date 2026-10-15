@@ -10,6 +10,7 @@ def parse_value(value):
     if not value:
         raise ValueError("Некорректное значение: пустой ввод.")
 
+    # Строковые значения обязательно заключаются в двойные кавычки.
     if value.startswith('"'):
         if len(value) < 2 or not value.endswith('"'):
             raise ValueError(f"Некорректное значение: {value}.")
@@ -21,19 +22,27 @@ def parse_value(value):
 
         return content
 
+    # Кавычки внутри нестрокового значения запрещены.
     if '"' in value:
         raise ValueError(f"Некорректное значение: {value}.")
 
+    # Логические значения.
     if value.lower() == "true":
         return True
 
     if value.lower() == "false":
         return False
 
-    try:
+    # Целые числа: необязательный знак и последовательность цифр.
+    number = value
+
+    if number.startswith(("+", "-")):
+        number = number[1:]
+
+    if number and number.isascii() and number.isdecimal():
         return int(value)
-    except ValueError:
-        raise ValueError(f"Некорректное значение: {value}.") from None
+
+    raise ValueError(f"Некорректное значение: {value}.")
 
 
 def parse_values(text):
