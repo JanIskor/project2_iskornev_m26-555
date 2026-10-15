@@ -122,3 +122,78 @@ def parse_insert(command):
         "table": table_name,
         "values": values,
     }
+
+
+def parse_condition(condition):
+    """Разбирает условие <column> = <value>."""
+    inside_quotes = False
+    operator_positions = []
+
+    for index, char in enumerate(condition):
+        if char == '"':
+            inside_quotes = not inside_quotes
+        elif char == "=" and not inside_quotes:
+            operator_positions.append(index)
+
+    if inside_quotes:
+        raise ValueError("Некорректное условие: незакрытые кавычки.")
+
+    if len(operator_positions) != 1:
+        raise ValueError("Некорректное условие: ожидается один оператор =.")
+
+    position = operator_positions[0]
+
+    column_name = condition[:position].strip()
+    value_text = condition[position + 1 :].strip()
+
+    if (
+        not column_name
+        or not column_name.isascii()
+        or not column_name.replace("_", "").isalnum()
+        or column_name[0].isdigit()
+    ):
+        raise ValueError(f"Некорректное имя столбца: {column_name}.")
+
+    value = parse_value(value_text)
+
+    return column_name, value
+
+
+def parse_select(command):
+    """Разбирает команду select from <Название таблицы> [where <column> = <value>]."""
+    command = command.strip()
+    parts = command.split(maxsplit=3)
+
+    if len(parts) < 3:
+        raise ValueError("Некорректная команда select.")
+
+    if parts[0] != "select" or parts[1] != "from":
+        raise ValueError("Некорректная команда select.")
+
+    table_name = parts[2]
+
+    if (
+        not table_name.isascii()
+        or not table_name.replace("_", "").isalnum()
+        or table_name[0].isdigit()
+    ):
+        raise ValueError(f"Некорректное имя таблицы: {table_name}.")
+
+    if len(parts) == 3:
+        return {
+            "table": table_name,
+            "where": None,
+        }
+
+    remainder = parts[3]
+    condition_parts = remainder.split(maxsplit=1)
+
+    if len(condition_parts) != 2 or condition_parts[0] != "where":
+        raise ValueError("Некорректная команда select: ожидается where.")
+
+    column_name, value = parse_condition(condition_parts[1])
+
+    return {
+        "table": table_name,
+        "where": (column_name, value),
+    }
