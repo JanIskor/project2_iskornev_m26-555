@@ -14,8 +14,8 @@ from primitive_db.constants import (
     COMMAND_SELECT,
     COMMAND_UPDATE,
 )
-from primitive_db.core import create_table, list_tables
-from primitive_db.utils import load_metadata, save_metadata
+from primitive_db.core import create_table, get_table_info, list_tables
+from primitive_db.utils import load_metadata, load_table_data, save_metadata
 
 HELP_TEXT = """Доступные команды:
   create_table <имя> <столбец:тип> ...  - Создать таблицу
@@ -35,7 +35,6 @@ NOT_IMPLEMENTED_COMMANDS = {
     COMMAND_SELECT,
     COMMAND_UPDATE,
     COMMAND_DELETE,
-    COMMAND_INFO,
 }
 
 
@@ -91,6 +90,28 @@ def handle_list_tables(command_line):
     print(f"Список таблиц: {', '.join(tables)}")
 
 
+def handle_info(command_line):
+    """Выводит структуру таблицы и количество записей."""
+    parts = command_line.split()
+
+    if len(parts) != 2:
+        raise ValueError("Некорректный синтаксис. Используйте: info <имя>")
+
+    table_name = parts[1]
+
+    metadata = load_metadata()
+    columns = get_table_info(metadata, table_name)
+    records = load_table_data(table_name)
+
+    print(f"Таблица: {table_name}")
+    print("Столбцы:")
+
+    for column_name, column_type in columns.items():
+        print(f"  {column_name}: {column_type}")
+
+    print(f"Количество записей: {len(records)}")
+
+
 def run():
     """Запускает интерактивный цикл обработки команд."""
     print("***База данных***")
@@ -140,6 +161,14 @@ def run():
         if command == COMMAND_LIST_TABLES:
             try:
                 handle_list_tables(command_line)
+            except ValueError as error:
+                print(f"Ошибка: {error}")
+            continue
+
+        # Информация о таблице
+        if command == COMMAND_INFO:
+            try:
+                handle_info(command_line)
             except ValueError as error:
                 print(f"Ошибка: {error}")
             continue
