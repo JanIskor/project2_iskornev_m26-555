@@ -257,3 +257,34 @@ def parse_update(command):
         "set": (set_column, set_value),
         "where": (where_column, where_value),
     }
+
+
+def parse_delete(command):
+    """Разбирает команду delete from <table> where <condition>."""
+    command = command.strip()
+    parts = command.split(maxsplit=4)
+
+    if len(parts) != 5:
+        raise ValueError("Некорректная команда delete.")
+
+    operation, keyword, table_name, where_keyword, condition = parts
+
+    if operation != "delete" or keyword != "from":
+        raise ValueError("Некорректная команда delete.")
+
+    if (
+        not table_name.isascii()
+        or not table_name.replace("_", "").isalnum()
+        or table_name[0].isdigit()
+    ):
+        raise ValueError(f"Некорректное имя таблицы: {table_name}.")
+
+    if where_keyword != "where":
+        raise ValueError("Некорректная команда delete: ожидается where.")
+
+    column_name, value = parse_condition(condition)
+
+    return {
+        "table": table_name,
+        "where": (column_name, value),
+    }
