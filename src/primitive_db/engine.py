@@ -37,6 +37,7 @@ from primitive_db.parser import (
     parse_update,
 )
 from primitive_db.utils import (
+    create_cacher,
     delete_table_data,
     load_metadata,
     load_table_data,
@@ -55,6 +56,14 @@ HELP_TEXT = """Доступные команды:
   info <имя>                          - Информация о таблице
   help                                - Показать справку
   exit                                - Выйти из программы"""
+
+cache_result = create_cacher()
+
+
+def reset_cache():
+    """Сбрасывает кеш результатов SELECT."""
+    global cache_result
+    cache_result = create_cacher()
 
 
 def show_help():
@@ -155,18 +164,19 @@ def handle_drop_table(command_line):
 
 @confirm_action("удаление таблицы")
 def execute_drop_table(metadata, table_name):
-    """Удаляет таблицу после подтверждения."""
+    """Удаляет таблицу после подтверждения и сбрасывает кеш."""
     updated_metadata = drop_table(metadata, table_name)
 
     save_metadata(updated_metadata)
     delete_table_data(table_name)
+    reset_cache()
 
     print(f'Таблица "{table_name}" успешно удалена.')
 
 
 @log_time
 def handle_insert(command_line):
-    """Добавляет запись в таблицу и сохраняет результат."""
+    """Добавляет запись в таблицу и сбрасывает кеш SELECT."""
     parsed = parse_insert(command_line)
     table_name = parsed["table"]
 
@@ -175,6 +185,7 @@ def handle_insert(command_line):
     updated_records = insert_record(columns, records, parsed["values"])
 
     save_table_data(table_name, updated_records)
+    reset_cache()
 
     new_record = updated_records[-1]
     print(f'Запись успешно добавлена в таблицу "{table_name}".')
@@ -183,13 +194,19 @@ def handle_insert(command_line):
 
 @log_time
 def handle_select(command_line):
-    """Выводит записи таблицы с возможной фильтрацией."""
+    """Выводит записи таблицы, используя кеш повторных запросов."""
     parsed = parse_select(command_line)
     table_name = parsed["table"]
+    where = parsed["where"]
 
-    columns, records = load_existing_table(table_name)
+    cache_key = (table_name, where)
 
-    selected_records = select_records(columns, records, parsed["where"])
+    def execute_select():
+        columns, records = load_existing_table(table_name)
+        selected_records = select_records(columns, records, where)
+        return columns, selected_records
+
+    columns, selected_records = cache_result(cache_key, execute_select)
 
     if not selected_records:
         print("Записи не найдены.")
@@ -206,7 +223,7 @@ def handle_select(command_line):
 
 
 def handle_update(command_line):
-    """Обновляет записи таблицы и сохраняет результат."""
+    """Обновляет записи таблицы и сбрасывает кеш при изменениях."""
     parsed = parse_update(command_line)
     table_name = parsed["table"]
 
@@ -221,6 +238,7 @@ def handle_update(command_line):
 
     if updated_count:
         save_table_data(table_name, updated_records)
+        reset_cache()
 
     print(f"Обновлено записей: {updated_count}")
 
@@ -248,7 +266,7 @@ def handle_delete(command_line):
 
 @confirm_action("удаление записей")
 def execute_delete(table_name, columns, records, where):
-    """Удаляет записи после подтверждения."""
+    """Удаляет записи после подтверждения и сбрасывает кеш."""
     updated_records, deleted_count = delete_records(
         columns,
         records,
@@ -256,6 +274,7 @@ def execute_delete(table_name, columns, records, where):
     )
 
     save_table_data(table_name, updated_records)
+    reset_cache()
 
     print(f"Удалено записей: {deleted_count}")
 
